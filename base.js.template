@@ -1,0 +1,9 @@
+// @ts-check
+const common = require('../common.js');
+
+common.wrapMain([
+  // preprocess
+  input => input,
+  // 1
+  input => input
+]);
