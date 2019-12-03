@@ -19,7 +19,7 @@ function readLong(buf, count) {
 /**
  * Create a new block
  * @param {Buffer} key 32-byte key
- * @param {Buffer} nonce 8-byte nonce
+ * @param {Buffer} nonce 12-byte nonce
  * @param {number} [position=0] 8-byte stream position
  * @param {Buffer} [constant] Constant (default 'expand 32-byte k')
  * @return {number[]}
@@ -112,7 +112,7 @@ function doBlock(state) {
 /**
  * Get a keystream
  * @param {Buffer} key 32-byte key
- * @param {Buffer} nonce 8-byte nonce
+ * @param {Buffer} nonce 12-byte nonce
  * @param {number} [position=0] Initial stream position (8 bytes)
  * @param {Buffer} [constant] Constant (default 'expand 32-byte k')
  */
