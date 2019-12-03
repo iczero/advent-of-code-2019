@@ -7,5 +7,9 @@ module.exports = {
     node: true,
     es6: true
   },
-  extends: ['@hellomouse/eslint-config']
+  extends: ['@hellomouse/eslint-config'],
+  rules: {
+    // doesn't work sometimes
+    'valid-jsdoc': 'off'
+  }
 };
