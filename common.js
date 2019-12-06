@@ -50,7 +50,7 @@ module.exports = {
     // run actual processing
     if (!parts[part]) return console.error('No such part');
     let result = await parts[part](input);
-    if (result[Symbol.iterator]) console.log(...result);
+    if (typeof result !== 'string' && result[Symbol.iterator]) console.log(...result);
     else console.log(result);
   },
 
