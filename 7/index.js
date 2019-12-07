@@ -108,7 +108,7 @@ async function trySequence2(program, sequence) {
  * @return {number[][]}
  */
 function permute(input) {
-  if (input.length === 2) return [input, input.reverse()];
+  if (input.length === 2) return [input, input.slice().reverse()];
   let out = [];
   for (let pick of input) {
     let step = permute(input.filter(a => pick !== a)).map(r => [pick, ...r]);
