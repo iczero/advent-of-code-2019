@@ -1,6 +1,4 @@
 // @ts-check
-// typescript takes care of this
-/* eslint-disable jsdoc/valid-types */
 const common = require('../common.js');
 const debug = require('debug')('aoc:6');
 

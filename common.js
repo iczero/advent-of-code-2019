@@ -6,6 +6,15 @@ const fsP = fs.promises;
 /** @type {(yargs: Yargs) => void} */
 let yargsHook = yargs => {};
 
+class Deferred {
+  constructor() {
+    this.promise = new Promise((resolve, reject) => {
+      this.resolve = resolve;
+      this.reject = reject;
+    });
+  }
+}
+
 module.exports = {
   // types on argv is going to be a nightmare
   /** @type {any} */
@@ -61,6 +70,7 @@ module.exports = {
    */
   splitInput(input) {
     return input.split('\n').filter(a => a);
-  }
+  },
+  Deferred
 };
 

@@ -10,6 +10,9 @@ module.exports = {
   extends: ['@hellomouse/eslint-config'],
   rules: {
     // doesn't work sometimes
-    'valid-jsdoc': 'off'
+    'valid-jsdoc': 'off',
+    // typescript takes care of both of these
+    'jsdoc/valid-types': 'off',
+    'jsdoc/no-undefined-types': 'off'
   }
 };
