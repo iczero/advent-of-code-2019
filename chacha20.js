@@ -1,5 +1,4 @@
 // @ts-check
-/* global BigInt */
 const debug = require('debug')('chacha20');
 
 /**

@@ -101,7 +101,7 @@ module.exports = class IntcodeProcessor {
       }
       case 4: { // writeOutput(pos)
         this.debug('instruction writeOutput');
-        let out = this.modalRead(this.ip + 1, 0);
+        let out = readParam(1);
         this.debug('write output value %d', out);
         this.putOutput(out);
         this.ip += 2;
