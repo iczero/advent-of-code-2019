@@ -1,3 +1,4 @@
+// @ts-check
 const debug = require('debug')('aoc:intcode');
 
 /**
@@ -17,7 +18,7 @@ module.exports = class IntcodeProcessor {
    * @param {object} opts
    * @param {number[]} [opts.input] Direct input
    * @param {() => AsyncGenerator<any, number, any>} [opts.getInput] Fancy input
-   * @param {() => void} [opts.onOutput] Output hook
+   * @param {(out: number) => void} [opts.onOutput] Output hook
    * @param {string} [opts.name] Optional name for this instance
    */
   constructor(opcodes, opts) {
@@ -26,12 +27,20 @@ module.exports = class IntcodeProcessor {
     this.onOutput = opts.onOutput;
 
     /** Async generator representing input */
-    this.inputState = opts.getInput ? opts.getInput() : null;
+    this.inputState = opts.getInput
+      ? opts.getInput()
+      : opts.input
+        ? opts.input.values()
+        : null;
     /** Current input position */
     this.inputPos = 0;
 
+    /** Should we be running? */
+    this.run = false;
     /** Instruction pointer */
     this.ip = 0;
+    /** @type {number} */
+    this.relativeBase = 0;
     /**
      * Output
      * @type {number[]}
@@ -42,13 +51,20 @@ module.exports = class IntcodeProcessor {
   }
 
   /**
+   * Get next input value
    * @return {Promise<number>}
    */
   async getInput() {
-    if (this.inputState) return (await this.inputState.next()).value;
-    else if (this.input) return this.input[this.inputPos++];
+    if (!this.inputState) throw new Error('no input provided');
+    let state = await this.inputState.next();
+    if (state.done) throw new Error('no more input!');
+    return state.value;
   }
 
+  /**
+   * Write output
+   * @param {number} out
+   */
   putOutput(out) {
     this.output.push(out);
     if (this.onOutput) this.onOutput(out);
@@ -69,6 +85,7 @@ module.exports = class IntcodeProcessor {
      * @return {number}
      */
     let readParam = i => this.modalRead(this.ip + i, digit(opcode, i + 1));
+    let writeParam = (i, val) => this.modalWrite(this.ip + i, digit(opcode, i + 1), val);
 
     switch (opcode % 100) {
       case 1: { // add(a, b, resultPos)
@@ -77,7 +94,7 @@ module.exports = class IntcodeProcessor {
         let v2 = readParam(2);
         let out = v1 + v2;
         this.debug('operation %d + %d = %d', v1, v2, out);
-        this.inWrite(this.ip + 3, out);
+        writeParam(3, out);
         this.ip += 4;
         return true;
       }
@@ -87,7 +104,7 @@ module.exports = class IntcodeProcessor {
         let v2 = readParam(2);
         let out = v1 * v2;
         this.debug('operation %d * %d = %d', v1, v2, out);
-        this.inWrite(this.ip + 3, out);
+        writeParam(3, out);
         this.ip += 4;
         return true;
       }
@@ -95,7 +112,7 @@ module.exports = class IntcodeProcessor {
         this.debug('instruction getInput');
         let input = await this.getInput();
         this.debug('read input value %d', input);
-        this.inWrite(this.ip + 1, input);
+        writeParam(1, input);
         this.ip += 2;
         return true;
       }
@@ -139,7 +156,7 @@ module.exports = class IntcodeProcessor {
         let v2 = readParam(2);
         let out = v1 < v2;
         this.debug('operation %d < %d = %s', v1, v2, out);
-        this.inWrite(this.ip + 3, out ? 1 : 0);
+        writeParam(3, out ? 1 : 0);
         this.ip += 4;
         return true;
       }
@@ -149,8 +166,18 @@ module.exports = class IntcodeProcessor {
         let v2 = readParam(2);
         let out = v1 === v2;
         this.debug('operation %d === %d = %s', v1, v2, out);
-        this.inWrite(this.ip + 3, out ? 1 : 0);
+        writeParam(3, out ? 1 : 0);
         this.ip += 4;
+        return true;
+      }
+      case 9: { // setRelativeBase(offset)
+        this.debug('instruction setRelativeBase');
+        let offset = readParam(1);
+        let value = this.relativeBase + offset;
+        this.debug('relative base original %d offset %d new %d',
+          this.relativeBase, offset, value);
+        this.relativeBase = value;
+        this.ip += 2;
         return true;
       }
       case 99: { // halt()
@@ -170,31 +197,64 @@ module.exports = class IntcodeProcessor {
    */
   modalRead(param, mode) {
     if (mode === 0) {
-      let pos = this.memory[param];
-      let value = this.memory[pos];
+      let pos = this.read(param);
+      let value = this.read(pos);
       this.debug('read indirect ptr %d pos %d value %d', param, pos, value);
       return value;
     } else if (mode === 1) {
-      let value = this.memory[param];
+      let value = this.read(param);
       this.debug('read direct pos %d value %d', param, value);
+      return value;
+    } else if (mode === 2) {
+      let pos = this.read(param) + this.relativeBase;
+      let value = this.read(pos);
+      this.debug('read indirect relative ptr %d base %d pos %d value %d',
+        param, this.relativeBase, pos, value);
       return value;
     } else throw new Error('unknown mode');
   }
 
   /**
-   * Write to the position specified by opcodes[i]
+   * Protected read
+   * Returns 0 if position is undefined (sparse), throws if negative
+   * @param {number} pos
+   * @return {number}
+   */
+  read(pos) {
+    if (pos < 0) throw new Error('invalid memory read: negative position');
+    let read = this.memory[pos];
+    if (typeof read === 'undefined') {
+      this.debug('memory read sparse pos %d', pos);
+      return 0;
+    }
+    return read;
+  }
+
+  /**
+   * Modal write
    * @param {number} i index
+   * @param {number} mode mode
    * @param {number} n what to write
    */
-  inWrite(i, n) {
-    let pos = this.memory[i];
-    this.debug('write indirect ptr %d pos %d value %d', i, pos, n);
-    this.memory[pos] = n;
+  modalWrite(i, mode, n) {
+    if (mode === 0) {
+      let pos = this.read(i);
+      this.debug('write indirect ptr %d pos %d value %d', i, pos, n);
+      this.memory[pos] = n;
+    } else if (mode === 1) {
+      throw new Error('invalid write mode 1');
+    } else if (mode === 2) {
+      let pos = this.read(i);
+      let target = pos += this.relativeBase;
+      this.debug('write indirect relative ptr %d base %d pos %d value %d',
+        i, this.relativeBase, target, n);
+      this.memory[pos] = n;
+    } else throw new Error('invalid write mode ' + mode);
   }
 
   async runToEnd() {
-    let run = true;
-    while (run) run = await this.processInstruction();
+    this.run = true;
+    while (this.run) this.run = await this.processInstruction();
     return this.output;
   }
 };
